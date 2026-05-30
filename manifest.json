@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Web to Markdown",
+  "version": "1.0.0",
+  "description": "一键将网页提取为 Markdown 并下载，融合预览编辑功能",
+  "permissions": ["activeTab", "contextMenus", "storage"],
+  "action": {
+    "default_title": "提取为 Markdown",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "commands": {
+    "extract-markdown": {
+      "suggested_key": {
+        "default": "Alt+M"
+      },
+      "description": "提取当前页面为 Markdown"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["lib/readability.js", "lib/turndown.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
