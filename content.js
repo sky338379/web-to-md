@@ -88,6 +88,113 @@
     return { title, author, date };
   }
 
+  // 学习通作业页专用提取：逐题解析 DOM，输出结构化 Markdown
+  function extractHomeworkMarkdown() {
+    const container = document.querySelector("#fanyaMarking .TiMu, .TiMu .ans-cc, .fanyaMarking");
+    if (!container) return null;
+
+    const items = container.querySelectorAll(".mark_item");
+    if (items.length === 0) return null;
+
+    const lines = [];
+
+    for (const item of items) {
+      // 题型标题（如 "一. 单选题（共15题，60分）"）
+      const typeTit = item.querySelector(".type_tit");
+      if (typeTit) {
+        lines.push("## " + typeTit.textContent.trim());
+        lines.push("");
+      }
+
+      // 逐题提取
+      const questions = item.querySelectorAll(".questionLi");
+      for (const q of questions) {
+        const questionText = parseQuestion(q);
+        if (questionText) lines.push(questionText);
+      }
+    }
+
+    const md = lines.join("\n");
+    return md.length > 100 ? md : null;
+  }
+
+  // 解析单道题
+  function parseQuestion(q) {
+    const parts = [];
+
+    // 题干（h3.mark_name）
+    const titleEl = q.querySelector("h3.mark_name");
+    if (!titleEl) return null;
+
+    // 题号 + 题型标签 + 题目内容
+    let titleText = titleEl.textContent.trim();
+    // 去掉题号后的重复题型括号，如 "1. (单选题)" → 保留即可
+    parts.push("### " + titleText);
+    parts.push("");
+
+    // 选项（ul.mark_letter > li）
+    const options = q.querySelector("ul.mark_letter");
+    if (options) {
+      const lis = options.querySelectorAll("li");
+      lis.forEach((li) => {
+        const text = elementToText(li);
+        if (text) parts.push("- " + text);
+      });
+      parts.push("");
+    }
+
+    // 我的答案 / 正确答案 / 得分
+    const stuAnswer = q.querySelector(".stuAnswerContent");
+    const rightAnswer = q.querySelector(".rightAnswerContent");
+    const scoreEl = q.querySelector(".totalScore");
+
+    if (stuAnswer) {
+      const ansText = stuAnswer.textContent.trim();
+      if (ansText) parts.push("**我的答案：**" + ansText);
+    }
+    if (rightAnswer) {
+      const ansText = rightAnswer.textContent.trim();
+      if (ansText) parts.push("**正确答案：**" + ansText);
+    }
+    if (scoreEl) {
+      const scoreText = scoreEl.textContent.trim();
+      if (scoreText) parts.push("**得分：**" + scoreText);
+    }
+
+    return parts.join("\n");
+  }
+
+  // 将元素内容转为纯文本，处理公式图片（取 data 属性解码 LaTeX）
+  function elementToText(el) {
+    // 克隆避免污染原 DOM
+    const clone = el.cloneNode(true);
+
+    // 处理 LaTeX 公式图片
+    const imgs = clone.querySelectorAll("img.ans-latex-moudle, img[data]");
+    for (const img of imgs) {
+      const dataAttr = img.getAttribute("data") || "";
+      if (dataAttr) {
+        try {
+          const decoded = decodeURIComponent(dataAttr);
+          // 去掉首尾引号
+          const latex = decoded.replace(/^"|"$/g, "");
+          const textNode = document.createTextNode("$" + latex + "$");
+          img.parentNode.replaceChild(textNode, img);
+        } catch {
+          // 解码失败则移除图片
+          img.remove();
+        }
+      } else {
+        img.remove();
+      }
+    }
+
+    // 移除隐藏元素
+    clone.querySelectorAll(".element-invisible-hidden").forEach((n) => n.remove());
+
+    return clone.textContent.replace(/\s+/g, " ").trim();
+  }
+
   // 从正文容器提取图片（直接转 markdown，不依赖 Readability）
   function extractArticleMarkdown(turndown) {
     const container =
@@ -119,8 +226,13 @@
     const turndown = createTurndown();
     let markdown = "";
 
+    // 方案零：学习通作业页专用提取（结构化逐题解析）
+    markdown = extractHomeworkMarkdown();
+
     // 方案一：从正文容器直接提取（图片保留在原文位置）
-    markdown = extractArticleMarkdown(turndown);
+    if (!markdown) {
+      markdown = extractArticleMarkdown(turndown);
+    }
 
     // 方案二：回退到 Readability
     if (!markdown) {
